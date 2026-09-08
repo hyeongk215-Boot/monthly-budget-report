@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>예산관리</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1 data-i18n="appTitle">예산관리</h1>
+  <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
+    <nav class="nav-links">
+      <a href="index.html" data-i18n="backBtn">← 뒤로</a>
+    </nav>
+    <div class="lang-switch">
+      <button class="lang-btn" data-lang="ko">한국어</button>
+      <button class="lang-btn" data-lang="zh">中文</button>
+    </div>
+  </div>
+</header>
+<main>
+  <div class="card">
+    <h2 data-i18n="viewHeading">예산 대비 실적</h2>
+    <div class="context-bar" id="contextBar"></div>
+    <div class="table-wrap">
+      <table class="exp-table" id="budgetTable">
+        <thead>
+          <tr>
+            <th data-i18n="colAccount"></th>
+            <th data-i18n="colBudgetCny"></th>
+            <th data-i18n="colActualCny"></th>
+            <th data-i18n="colVarianceRate"></th>
+          </tr>
+        </thead>
+        <tbody id="budgetBody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+<footer>예산관리 · China Branch Budget vs Actual</footer>
+<div class="toast" id="toast"></div>
+
+<script src="js/config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/common.js"></script>
+<script src="js/app-view.js"></script>
+</body>
+</html>
