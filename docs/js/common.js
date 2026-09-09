@@ -56,6 +56,11 @@ window.corpLabel = function (koValue, lang) {
   if (!item) return koValue;
   return item[lang || getLang()] || item.ko;
 };
+window.officeLabel = function (koValue, lang) {
+  var item = findByKo(window.APP_CONFIG.OFFICES, koValue);
+  if (!item) return koValue;
+  return item[lang || getLang()] || item.ko;
+};
 
 // ===== 세션 컨텍스트 (법인/년월/접근키/역할) =====
 window.saveContext = function (ctx) {

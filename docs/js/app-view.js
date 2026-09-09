@@ -16,6 +16,7 @@
     var el = document.getElementById("contextBar");
     el.innerHTML =
       "<span><b>" + t("corp") + "</b>: " + window.corpLabel(ctx.corp) + "</span>" +
+      (ctx.office ? "<span><b>" + t("office") + "</b>: " + window.officeLabel(ctx.office) + "</span>" : "") +
       "<span><b>" + t("yearmonth") + "</b>: " + ctx.yearmonth + "</span>";
   }
 

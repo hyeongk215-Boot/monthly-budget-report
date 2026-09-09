@@ -64,6 +64,84 @@
     });
   }
 
+  var gaAggRows = [];
+
+  function renderGaAggTable(rows) {
+    gaAggRows = rows || [];
+    var body = document.getElementById("gaAggBody");
+    body.innerHTML = "";
+    var byKey = {};
+    var keys = [];
+    gaAggRows.forEach(function (r) {
+      var k = r.corp + "::" + r.office + "::" + r.category;
+      if (!byKey[k]) { byKey[k] = { corp: r.corp, office: r.office, category: r.category }; keys.push(k); }
+      var total = Number(r.fixedCny || 0) + Number(r.variableCny || 0);
+      byKey[k][r.kind] = total;
+    });
+    keys.sort();
+    keys.forEach(function (k) {
+      var row = byKey[k];
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + window.corpLabel(row.corp) + "</td>" +
+        "<td>" + window.officeLabel(row.office) + "</td>" +
+        "<td style='text-align:left;'>" + window.gaCategoryLabel(row.category) + "</td>" +
+        "<td>" + Number(row.budget || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) + "</td>" +
+        "<td>" + Number(row.actual || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) + "</td>";
+      body.appendChild(tr);
+    });
+  }
+
+  function downloadGaAgg() {
+    if (!gaAggRows.length) { showToast(t("adminDeleteSelectedNone")); return; }
+    var header = [t("colCorp"), t("office"), t("colCategory"), t("colFixed"), t("colVariable"), "kind"];
+    var aoa = [header];
+    gaAggRows.forEach(function (r) {
+      aoa.push([window.corpLabel(r.corp), window.officeLabel(r.office), window.gaCategoryLabel(r.category), r.fixedCny, r.variableCny, r.kind]);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{ wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 8 }];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, getYm());
+    window.downloadWorkbook(wb, t("fileNamePrefix") + "_일반관리비_" + getYm() + ".xlsx");
+  }
+
+  function renderTargetProfitGrid(rows) {
+    var byOffice = {};
+    (rows || []).forEach(function (r) { byOffice[r.office] = r.targetOperatingProfitCny; });
+    var body = document.getElementById("targetProfitBody");
+    body.innerHTML = "";
+    window.APP_CONFIG.OFFICES.forEach(function (item) {
+      var tr = document.createElement("tr");
+      var val = byOffice[item.ko] != null ? byOffice[item.ko] : "";
+      tr.innerHTML =
+        "<td style='text-align:left;'>" + window.officeLabel(item.ko) + "</td>" +
+        "<td><input type='number' step='0.01' data-office='" + item.ko + "' class='target-profit-input' value='" + val + "'></td>";
+      body.appendChild(tr);
+    });
+  }
+
+  function saveTargetProfit() {
+    var client = window.getSupabaseClient();
+    var key = getKey();
+    if (!client) { showToast(t("saveTargetProfitFail")); return; }
+    if (!key) { showToast(t("adminKeyRequired")); return; }
+    var corp = getCorp();
+    var ym = getYm();
+    var inputs = Array.from(document.querySelectorAll(".target-profit-input"));
+    Promise.all(inputs.map(function (input) {
+      return client.rpc("set_target_profit", {
+        p_access_key: key, p_corp: corp, p_office: input.dataset.office,
+        p_yearmonth: ym, p_amount_cny: Number(input.value) || 0
+      });
+    })).then(function (results) {
+      if (results.some(function (r) { return r.error; })) throw new Error("save_failed");
+      showToast(t("saveTargetProfitSuccess"));
+    }).catch(function () {
+      showToast(t("saveTargetProfitFail"));
+    });
+  }
+
   function renderMonthStatus() {
     var ym = getYm();
     var isClosed = closedMonths.indexOf(ym) !== -1;
@@ -188,7 +266,9 @@
     if (!key) { showToast(t("adminKeyRequired")); return; }
     Promise.all([
       client.rpc("get_budget", { p_access_key: key, p_corp: getCorp(), p_yearmonth: getYm() }),
-      client.rpc("get_budget_aggregate", { p_access_key: key, p_yearmonth: getYm() })
+      client.rpc("get_budget_aggregate", { p_access_key: key, p_yearmonth: getYm() }),
+      client.rpc("get_target_profit", { p_access_key: key, p_corp: getCorp(), p_yearmonth: getYm() }),
+      client.rpc("get_ga_aggregate", { p_access_key: key, p_yearmonth: getYm() })
     ]).then(function (results) {
       if (results[0].error) throw results[0].error;
       if (results[1].error) throw results[1].error;
@@ -196,6 +276,8 @@
       aggRows = results[1].data || [];
       corpFilter = null;
       renderAgg();
+      renderTargetProfitGrid(results[2].data || []);
+      renderGaAggTable(results[3].data || []);
     }).catch(function () {
       showToast(t("adminFetchFail"));
     });
@@ -207,6 +289,8 @@
     document.addEventListener("langchange", function () { fillCorp(); fillYm(); renderMonthStatus(); renderAgg(); });
     document.getElementById("fetchBtn").addEventListener("click", fetchData);
     document.getElementById("saveBudgetBtn").addEventListener("click", saveBudget);
+    document.getElementById("saveTargetProfitBtn").addEventListener("click", saveTargetProfit);
+    document.getElementById("downloadGaBtn").addEventListener("click", downloadGaAgg);
     document.getElementById("closeMonthBtn").addEventListener("click", toggleMonthClosed);
     document.getElementById("adminYm").addEventListener("change", renderMonthStatus);
     document.getElementById("downloadBtn").addEventListener("click", downloadAgg);

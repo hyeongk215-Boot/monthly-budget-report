@@ -65,6 +65,47 @@
   </div>
 
   <div class="card">
+    <h2 data-i18n="targetProfitHeading" style="font-size:18px;"></h2>
+    <p class="desc" data-i18n="targetProfitDesc"></p>
+    <div class="table-wrap">
+      <table class="exp-table" id="targetProfitTable">
+        <thead>
+          <tr>
+            <th data-i18n="office"></th>
+            <th data-i18n="colTargetProfitCny"></th>
+          </tr>
+        </thead>
+        <tbody id="targetProfitBody"></tbody>
+      </table>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" id="saveTargetProfitBtn" data-i18n="saveTargetProfitBtn"></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="gaAggHeading" style="font-size:18px;"></h2>
+    <p class="desc" data-i18n="gaAggDesc"></p>
+    <div class="table-wrap">
+      <table class="exp-table" id="gaAggTable">
+        <thead>
+          <tr>
+            <th data-i18n="colCorp"></th>
+            <th data-i18n="office"></th>
+            <th data-i18n="colCategory"></th>
+            <th data-i18n="colBudget"></th>
+            <th data-i18n="colActual"></th>
+          </tr>
+        </thead>
+        <tbody id="gaAggBody"></tbody>
+      </table>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" id="downloadGaBtn" data-i18n="adminDownload"></button>
+    </div>
+  </div>
+
+  <div class="card">
     <h2 data-i18n="aggHeading" style="font-size:18px;"></h2>
     <p class="desc" data-i18n="adminFilterHint"></p>
     <div class="status-grid" id="corpFilterGrid"></div>
@@ -102,6 +143,7 @@
 <script src="js/i18n.js"></script>
 <script src="js/common.js"></script>
 <script src="vendor/xlsx.full.min.js"></script>
+<script src="js/ga-categories.js"></script>
 <script src="js/app-admin.js"></script>
 </body>
 </html>

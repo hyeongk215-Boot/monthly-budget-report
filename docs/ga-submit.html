@@ -11,8 +11,7 @@
   <h1 data-i18n="appTitle">예산관리</h1>
   <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
     <nav class="nav-links">
-      <a href="index.html" data-i18n="backBtn">← 뒤로</a>
-      <a href="ga-submit.html" data-i18n="gaSubmitNavLink">일반관리비 입력</a>
+      <a href="view.html" data-i18n="backBtn">← 뒤로</a>
     </nav>
     <div class="lang-switch">
       <button class="lang-btn" data-lang="ko">한국어</button>
@@ -22,20 +21,31 @@
 </header>
 <main>
   <div class="card">
-    <h2 data-i18n="viewHeading">예산 대비 실적</h2>
+    <h2 data-i18n="gaSubmitHeading"></h2>
+    <p class="desc" data-i18n="gaSubmitDesc"></p>
     <div class="context-bar" id="contextBar"></div>
+    <div class="note-box" id="closedBanner" style="display:none;"></div>
+
     <div class="table-wrap">
-      <table class="exp-table" id="budgetTable">
+      <table class="exp-table" id="gaTable">
         <thead>
           <tr>
-            <th data-i18n="colAccount"></th>
-            <th data-i18n="colBudgetCny"></th>
-            <th data-i18n="colActualCny"></th>
-            <th data-i18n="colVarianceRate"></th>
+            <th rowspan="2" data-i18n="colCategory"></th>
+            <th colspan="2" data-i18n="colBudget"></th>
+            <th colspan="2" data-i18n="colActual"></th>
+          </tr>
+          <tr>
+            <th data-i18n="colFixed"></th>
+            <th data-i18n="colVariable"></th>
+            <th data-i18n="colFixed"></th>
+            <th data-i18n="colVariable"></th>
           </tr>
         </thead>
-        <tbody id="budgetBody"></tbody>
+        <tbody id="gaBody"></tbody>
       </table>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" id="submitGaBtn" data-i18n="submitTabBtn"></button>
     </div>
   </div>
 </main>
@@ -46,6 +56,7 @@
 <script src="vendor/supabase.js"></script>
 <script src="js/i18n.js"></script>
 <script src="js/common.js"></script>
-<script src="js/app-view.js"></script>
+<script src="js/ga-categories.js"></script>
+<script src="js/app-ga-submit.js"></script>
 </body>
 </html>

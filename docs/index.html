@@ -29,8 +29,16 @@
         <select id="corp"></select>
       </div>
       <div>
+        <label data-i18n="office">지점</label>
+        <select id="office"></select>
+      </div>
+      <div>
         <label data-i18n="yearmonth">적용년도월</label>
         <select id="yearmonth"></select>
+      </div>
+      <div>
+        <label data-i18n="submitterName"></label>
+        <input type="text" id="submitter">
       </div>
       <div>
         <label data-i18n="accessKeyLabel">접근키</label>
@@ -85,6 +93,7 @@ function showToast(msg) {
 }
 function init() {
   fillLocalizedSelect(document.getElementById("corp"), window.APP_CONFIG.CORPORATIONS, "selectPlaceholder");
+  fillLocalizedSelect(document.getElementById("office"), window.APP_CONFIG.OFFICES, "selectPlaceholder");
   var ymSel = document.getElementById("yearmonth");
   var hadYm = ymSel.value;
   fillSelect(ymSel, window.generateYearMonths(), "selectPlaceholder");
@@ -96,9 +105,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.getElementById("startBtn").addEventListener("click", function () {
     var corp = document.getElementById("corp").value;
+    var office = document.getElementById("office").value;
     var yearmonth = document.getElementById("yearmonth").value;
+    var submitter = document.getElementById("submitter").value.trim();
     var accessKey = document.getElementById("accessKey").value;
-    if (!corp || !yearmonth || !accessKey) {
+    if (!corp || !office || !yearmonth || !submitter || !accessKey) {
       showToast(t("requiredWarning"));
       return;
     }
@@ -121,9 +132,15 @@ document.addEventListener("DOMContentLoaded", function () {
         finalCorp = info.branch_scope;
         showToast(t("keyMismatchBranch", { branch: window.corpLabel(info.branch_scope) }));
       }
+      var finalOffice = office;
+      if (info.office_scope && info.office_scope !== office) {
+        finalOffice = info.office_scope;
+      }
       window.saveContext({
         corp: finalCorp,
+        office: finalOffice,
         yearmonth: yearmonth,
+        submitter: submitter,
         accessKey: accessKey,
         role: info.role,
         branchScope: info.branch_scope
