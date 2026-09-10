@@ -10,10 +10,12 @@
 -- 예산관리 전용 테이블
 -- =====================================================================
 
--- 예산 (법인×월×계정 자연키, 본사만 upsert)
+-- 예산 (법인×지점×월×계정 자연키). v3부터 지점이 연간(1~12월) 한 번에 제출하고,
+-- 제출 후에는 system_admin/finance만 수정할 수 있습니다 (bgt_annual_lock 참고).
 create table if not exists bgt_budget_lines (
   id bigint generated always as identity primary key,
   corp text not null,
+  office text not null default '',
   yearmonth text not null,
   account_code text not null,
   amount_cny numeric not null default 0,
@@ -21,11 +23,27 @@ create table if not exists bgt_budget_lines (
   set_by_role text,
   set_at timestamptz not null default now()
 );
+alter table bgt_budget_lines add column if not exists office text not null default '';
+drop index if exists uq_bgt_lines_natural;
 create unique index if not exists uq_bgt_lines_natural
-  on bgt_budget_lines(corp, yearmonth, account_code);
+  on bgt_budget_lines(corp, office, yearmonth, account_code);
 create index if not exists idx_bgt_lines_ym on bgt_budget_lines(yearmonth);
 alter table bgt_budget_lines enable row level security;
 revoke all on bgt_budget_lines from anon, authenticated;
+
+-- 연간 예산+목표영업이익 제출 잠금 (법인×지점×연도 단위). 최초 제출 시 자동 잠기고,
+-- system_admin/finance가 잠금 해제해야 다시 제출(수정)할 수 있습니다.
+create table if not exists bgt_annual_lock (
+  corp text not null,
+  office text not null default '',
+  year text not null,
+  locked boolean not null default false,
+  locked_by text,
+  locked_at timestamptz,
+  primary key (corp, office, year)
+);
+alter table bgt_annual_lock enable row level security;
+revoke all on bgt_annual_lock from anon, authenticated;
 
 -- 예산 마감 (회계관리 acct_closed_months와 별개 - 예산이 확정된 후 잠그는 용도)
 create table if not exists bgt_closed_months (
@@ -71,6 +89,12 @@ revoke all on bgt_ga_lines from anon, authenticated;
 -- =====================================================================
 -- RPC 함수
 -- =====================================================================
+
+-- v3: 계정과목 예산이 지점×연간 제출 방식으로 바뀌면서 아래 v2 함수들은 폐기되었습니다.
+-- create or replace로 시그니처를 안 바꾸면 옛 오버로드가 그대로 남으므로 명시적으로 드롭합니다.
+drop function if exists get_budget(text, text, text);
+drop function if exists set_budget_lines(text, text, text, jsonb);
+drop function if exists get_budget_aggregate(text, text);
 
 -- 마감된 월 목록 (공개 - admin.html에서 마감 상태 표시용)
 create or replace function get_budget_closed_months() returns jsonb
@@ -286,13 +310,13 @@ begin
 end;
 $$;
 
--- 법인 1곳의 예산 대비 실적 조회 (지점/본사 공통 - 지점은 자기 법인만)
--- 실적은 회계관리의 acct_statement_lines(statement_type='PL')를 그때그때 합산해서 가져오므로
--- 이 모듈은 실적 데이터를 별도로 저장/동기화하지 않습니다.
-create or replace function get_budget(
+-- 연간(1~12월) 예산+목표영업이익 조회 (지점/본사 공통 - 지점은 자기 법인×지점만). 프리필 및
+-- 편집화면 표시용. 잠금 상태(locked)도 함께 반환합니다.
+create or replace function get_annual_budget(
   p_access_key text,
   p_corp text,
-  p_yearmonth text
+  p_office text,
+  p_year text
 ) returns jsonb
 language plpgsql
 security definer
@@ -301,84 +325,151 @@ as $$
 declare
   v_role text;
   v_branch_scope text;
+  v_office_scope text;
   v_corp text;
-  v_result jsonb;
+  v_office text;
+  v_locked boolean;
+  v_budget jsonb;
+  v_target jsonb;
+  v_actual jsonb;
 begin
-  select role, branch_scope into v_role, v_branch_scope from verify_access_key(p_access_key);
+  select role, branch_scope, office_scope into v_role, v_branch_scope, v_office_scope from verify_access_key(p_access_key);
   v_corp := coalesce(v_branch_scope, p_corp);
+  v_office := coalesce(v_office_scope, p_office);
 
-  with actual as (
-    select account_code, sum(amount_cny) as actual_cny
-    from acct_statement_lines
-    where corp = v_corp and yearmonth = p_yearmonth and statement_type = 'PL'
-    group by account_code
-  )
-  select jsonb_agg(to_jsonb(x) order by x."displayOrder")
-    into v_result
+  select coalesce(locked, false) into v_locked from bgt_annual_lock where corp = v_corp and office = v_office and year = p_year;
+
+  select coalesce(jsonb_agg(to_jsonb(x) order by x."displayOrder"), '[]'::jsonb) into v_budget
   from (
     select a.code as "accountCode", a.name_ko as "nameKo", a.name_zh as "nameZh",
-           a.category, a.display_order as "displayOrder", a.is_subtotal as "isSubtotal",
-           coalesce(b.amount_cny, 0) as "budgetCny", coalesce(act.actual_cny, 0) as "actualCny"
+           a.display_order as "displayOrder", a.is_subtotal as "isSubtotal",
+           coalesce((
+             select jsonb_object_agg(right(b.yearmonth, 2), b.amount_cny)
+             from bgt_budget_lines b
+             where b.corp = v_corp and b.office = v_office and b.account_code = a.code
+               and left(b.yearmonth, 4) = p_year
+           ), '{}'::jsonb) as months
     from acct_accounts a
-    left join bgt_budget_lines b on b.corp = v_corp and b.yearmonth = p_yearmonth and b.account_code = a.code
-    left join actual act on act.account_code = a.code
-    where a.statement_type = 'PL' and a.active = true
+    where a.statement_type = 'PL' and a.active = true and a.is_subtotal = false
   ) x;
 
-  return coalesce(v_result, '[]'::jsonb);
+  select coalesce(jsonb_object_agg(right(yearmonth, 2), target_operating_profit_cny), '{}'::jsonb) into v_target
+  from bgt_target_profit
+  where corp = v_corp and office = v_office and left(yearmonth, 4) = p_year;
+
+  select coalesce(jsonb_object_agg(right(yearmonth, 2), amount_cny), '{}'::jsonb) into v_actual
+  from acct_statement_lines
+  where corp = v_corp and office = v_office and statement_type = 'PL_KR' and account_code = '799999'
+    and left(yearmonth, 4) = p_year;
+
+  return jsonb_build_object('locked', coalesce(v_locked, false), 'budget', v_budget, 'target', v_target, 'targetActual', v_actual);
 end;
 $$;
 
--- 예산 수립/수정 (system_admin/finance 전용) - 자연키 upsert
-create or replace function set_budget_lines(
+-- 연간 예산+목표영업이익 제출 (지점 담당자, 최초 1회. 잠긴 뒤에는 system_admin/finance만 재제출 가능)
+-- p_budget_lines: [{accountCode, months:{"01":amt,...,"12":amt}}], p_target_months: {"01":amt,...,"12":amt}
+create or replace function submit_annual_budget(
   p_access_key text,
   p_corp text,
-  p_yearmonth text,
-  p_lines jsonb
-) returns integer
+  p_office text,
+  p_year text,
+  p_budget_lines jsonb,
+  p_target_months jsonb,
+  p_submitted_by text
+) returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
   v_role text;
-  v_row jsonb;
-  v_count integer := 0;
+  v_branch_scope text;
+  v_office_scope text;
+  v_locked boolean;
+  v_line jsonb;
+  v_month text;
+  v_months text[] := array['01','02','03','04','05','06','07','08','09','10','11','12'];
+begin
+  select role, branch_scope, office_scope into v_role, v_branch_scope, v_office_scope from verify_access_key(p_access_key);
+
+  if v_branch_scope is not null and p_corp is distinct from v_branch_scope then
+    raise exception 'unauthorized_branch';
+  end if;
+  if v_office_scope is not null and p_office is distinct from v_office_scope then
+    raise exception 'unauthorized_office';
+  end if;
+  if p_corp is null or p_office is null or p_year is null or p_submitted_by is null then
+    raise exception 'invalid_payload';
+  end if;
+
+  select coalesce(locked, false) into v_locked from bgt_annual_lock where corp = p_corp and office = p_office and year = p_year;
+  if coalesce(v_locked, false) and v_role not in ('system_admin', 'finance') then
+    raise exception 'annual_locked';
+  end if;
+
+  for v_line in select * from jsonb_array_elements(coalesce(p_budget_lines, '[]'::jsonb))
+  loop
+    foreach v_month in array v_months
+    loop
+      if (v_line->'months') ? v_month then
+        insert into bgt_budget_lines (corp, office, yearmonth, account_code, amount_cny, set_by, set_by_role, set_at)
+        values (
+          p_corp, p_office, p_year || '-' || v_month, v_line->>'accountCode',
+          coalesce(nullif(v_line->'months'->>v_month, '')::numeric, 0),
+          p_submitted_by, v_role, now()
+        )
+        on conflict (corp, office, yearmonth, account_code) do update
+          set amount_cny = excluded.amount_cny, set_by = excluded.set_by, set_by_role = excluded.set_by_role, set_at = now();
+      end if;
+    end loop;
+  end loop;
+
+  foreach v_month in array v_months
+  loop
+    if coalesce(p_target_months, '{}'::jsonb) ? v_month then
+      insert into bgt_target_profit (corp, office, yearmonth, target_operating_profit_cny, set_by, set_at)
+      values (p_corp, p_office, p_year || '-' || v_month, coalesce(nullif(p_target_months->>v_month, '')::numeric, 0), p_submitted_by, now())
+      on conflict (corp, office, yearmonth) do update
+        set target_operating_profit_cny = excluded.target_operating_profit_cny, set_by = excluded.set_by, set_at = now();
+    end if;
+  end loop;
+
+  insert into bgt_annual_lock (corp, office, year, locked, locked_by, locked_at)
+  values (p_corp, p_office, p_year, true, v_role, now())
+  on conflict (corp, office, year) do update
+    set locked = true, locked_by = excluded.locked_by, locked_at = now();
+end;
+$$;
+
+-- 연간 예산 잠금 해제 (system_admin/finance 전용) - 해제 후 지점이 다시 제출할 수 있게 됨
+create or replace function unlock_annual_budget(
+  p_access_key text,
+  p_corp text,
+  p_office text,
+  p_year text
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_role text;
 begin
   select role into v_role from verify_access_key(p_access_key);
   if v_role not in ('system_admin', 'finance') then
     raise exception 'unauthorized';
   end if;
-
-  if exists (select 1 from bgt_closed_months where yearmonth = p_yearmonth) then
-    raise exception 'budget_closed';
-  end if;
-
-  if p_corp is null or p_yearmonth is null or p_lines is null or jsonb_array_length(p_lines) = 0 then
-    raise exception 'invalid_payload';
-  end if;
-
-  for v_row in select * from jsonb_array_elements(p_lines)
-  loop
-    insert into bgt_budget_lines (corp, yearmonth, account_code, amount_cny, set_by, set_by_role, set_at)
-    values (
-      p_corp, p_yearmonth, v_row->>'accountCode',
-      coalesce(nullif(v_row->>'amountCny', '')::numeric, 0),
-      v_role, v_role, now()
-    )
-    on conflict (corp, yearmonth, account_code) do update
-      set amount_cny = excluded.amount_cny, set_by = excluded.set_by, set_by_role = excluded.set_by_role, set_at = now();
-    v_count := v_count + 1;
-  end loop;
-
-  return v_count;
+  insert into bgt_annual_lock (corp, office, year, locked, locked_by, locked_at)
+  values (p_corp, p_office, p_year, false, v_role, now())
+  on conflict (corp, office, year) do update
+    set locked = false, locked_by = excluded.locked_by, locked_at = now();
 end;
 $$;
 
--- 전체 법인 통합 예산/실적 조회 (system_admin/finance 전용 - 본사 통합 리포트/엑셀용)
-create or replace function get_budget_aggregate(
+-- 법인×지점별 연간 목표영업이익/예산 달성현황 (system_admin/finance 전용 - 본사 리포트/엑셀용)
+create or replace function get_annual_achievement_aggregate(
   p_access_key text,
-  p_yearmonth text
+  p_year text
 ) returns jsonb
 language plpgsql
 security definer
@@ -393,33 +484,33 @@ begin
     raise exception 'unauthorized';
   end if;
 
-  with actual as (
-    select corp, account_code, sum(amount_cny) as actual_cny
-    from acct_statement_lines
-    where yearmonth = p_yearmonth and statement_type = 'PL'
-    group by corp, account_code
-  ),
-  budget as (
-    select corp, account_code, amount_cny from bgt_budget_lines where yearmonth = p_yearmonth
-  ),
-  corps as (
-    select distinct corp from (
-      select corp from actual union select corp from budget
-    ) c
+  with pairs as (
+    select distinct corp, office from (
+      select corp, office from bgt_target_profit where left(yearmonth, 4) = p_year
+      union
+      select corp, office from bgt_budget_lines where left(yearmonth, 4) = p_year
+    ) x
   )
-  select jsonb_agg(to_jsonb(x) order by x.corp, x."displayOrder")
+  select coalesce(jsonb_agg(to_jsonb(r) order by r.corp, r.office), '[]'::jsonb)
     into v_result
   from (
-    select c.corp, a.code as "accountCode", a.name_ko as "nameKo", a.name_zh as "nameZh",
-           a.display_order as "displayOrder", a.is_subtotal as "isSubtotal",
-           coalesce(b.amount_cny, 0) as "budgetCny", coalesce(act.actual_cny, 0) as "actualCny"
-    from corps c
-    cross join (select * from acct_accounts where statement_type = 'PL' and active = true) a
-    left join budget b on b.corp = c.corp and b.account_code = a.code
-    left join actual act on act.corp = c.corp and act.account_code = a.code
-  ) x;
+    select
+      p.corp, p.office,
+      coalesce((select sum(target_operating_profit_cny) from bgt_target_profit
+                where corp = p.corp and office = p.office and left(yearmonth, 4) = p_year), 0) as "targetProfitCny",
+      coalesce((select sum(amount_cny) from acct_statement_lines
+                where corp = p.corp and office = p.office and statement_type = 'PL_KR'
+                  and account_code = '799999' and left(yearmonth, 4) = p_year), 0) as "actualProfitCny",
+      coalesce((select sum(amount_cny) from bgt_budget_lines
+                where corp = p.corp and office = p.office and account_code = '500000' and left(yearmonth, 4) = p_year), 0) as "budgetRevenueCny",
+      coalesce((select sum(amount_cny) from acct_statement_lines
+                where corp = p.corp and office = p.office and statement_type = 'PL'
+                  and account_code = '500000' and left(yearmonth, 4) = p_year), 0) as "actualRevenueCny",
+      coalesce((select locked from bgt_annual_lock where corp = p.corp and office = p.office and year = p_year), false) as "locked"
+    from pairs p
+  ) r;
 
-  return coalesce(v_result, '[]'::jsonb);
+  return v_result;
 end;
 $$;
 
@@ -472,8 +563,9 @@ grant execute on function get_target_profit_aggregate(text, text) to anon, authe
 grant execute on function submit_ga_lines(text, text, text, text, text, jsonb) to anon, authenticated;
 grant execute on function get_ga_lines(text, text, text, text) to anon, authenticated;
 grant execute on function get_ga_aggregate(text, text) to anon, authenticated;
-grant execute on function get_budget(text, text, text) to anon, authenticated;
-grant execute on function set_budget_lines(text, text, text, jsonb) to anon, authenticated;
-grant execute on function get_budget_aggregate(text, text) to anon, authenticated;
+grant execute on function get_annual_budget(text, text, text, text) to anon, authenticated;
+grant execute on function submit_annual_budget(text, text, text, text, jsonb, jsonb, text) to anon, authenticated;
+grant execute on function unlock_annual_budget(text, text, text, text) to anon, authenticated;
+grant execute on function get_annual_achievement_aggregate(text, text) to anon, authenticated;
 grant execute on function close_budget_month(text, text) to anon, authenticated;
 grant execute on function reopen_budget_month(text, text) to anon, authenticated;

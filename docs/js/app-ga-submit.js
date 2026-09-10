@@ -42,6 +42,41 @@
     });
   }
 
+  var MONTHS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+
+  function renderYtdRecap(target, targetActual) {
+    var headRow = document.getElementById("ytdRecapHeadRow");
+    headRow.innerHTML = "<th>" + t("colAccount") + "</th>";
+    MONTHS.forEach(function (m) {
+      var th = document.createElement("th");
+      th.textContent = Number(m) + t("monthSuffix");
+      headRow.appendChild(th);
+    });
+    var body = document.getElementById("ytdRecapBody");
+    body.innerHTML = "";
+    var targetRow = "<td style='text-align:left;'>" + t("targetProfitRowLabel") + "</td>";
+    var actualRow = "<td style='text-align:left;'>" + t("colOperatingProfit") + "</td>";
+    MONTHS.forEach(function (m) {
+      targetRow += "<td>" + (target[m] != null ? Number(target[m]).toLocaleString() : "-") + "</td>";
+      actualRow += "<td>" + (targetActual[m] != null ? Number(targetActual[m]).toLocaleString() : "-") + "</td>";
+    });
+    var tr1 = document.createElement("tr");
+    tr1.innerHTML = targetRow;
+    var tr2 = document.createElement("tr");
+    tr2.innerHTML = actualRow;
+    body.appendChild(tr1);
+    body.appendChild(tr2);
+  }
+
+  function loadYtdRecap() {
+    var year = String(ctx.yearmonth).slice(0, 4);
+    client.rpc("get_annual_budget", { p_access_key: ctx.accessKey, p_corp: ctx.corp, p_office: ctx.office, p_year: year }).then(function (res) {
+      if (res.error) return;
+      var data = res.data || {};
+      renderYtdRecap(data.target || {}, data.targetActual || {});
+    });
+  }
+
   function applyClosedState() {
     var isClosed = closedMonths.indexOf(ctx.yearmonth) !== -1;
     var banner = document.getElementById("closedBanner");
@@ -96,6 +131,7 @@
       renderGrid(results[0].data || []);
       closedMonths = results[1] || [];
       applyClosedState();
+      loadYtdRecap();
     }).catch(function () {
       showToast(t("fetchFail"));
     });
