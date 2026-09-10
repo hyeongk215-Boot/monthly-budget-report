@@ -152,3 +152,4 @@ tr.under-budget td { background: #f2fbf3; }
 .variance-badge.over { background: #fde8e6; color: var(--danger); }
 .variance-badge.under { background: #eafaf0; color: var(--ok); }
 .variance-badge.na { background: #eef1f5; color: var(--muted); }
+.budget-cell { background: #f7f8fa; color: var(--muted); }

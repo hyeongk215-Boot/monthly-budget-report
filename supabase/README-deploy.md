@@ -11,9 +11,11 @@
 ## 1. 테이블/함수 생성
 
 1. Supabase 대시보드 → **SQL Editor → New query**
-2. `schema.sql` 전체를 붙여넣고 **Run**. `bgt_budget_lines`/`bgt_closed_months` 테이블과
-   `get_budget`/`set_budget_lines`/`get_budget_aggregate`/`close_budget_month`/`reopen_budget_month`
-   함수가 생성됩니다.
+2. `schema.sql` 전체를 붙여넣고 **Run**. `bgt_ga_lines`(예산+실적 공용)/`bgt_ga_actual_lock`/
+   `bgt_annual_lock`/`bgt_target_profit`/`bgt_closed_months` 테이블과 `submit_annual_budget`/
+   `get_annual_budget`/`submit_ga_lines`/`get_ga_period_report`/`close_budget_month`/
+   `reopen_budget_month` 등의 함수가 생성됩니다. (v4부터 PL 계정과목 기준 예산은 폐지되어
+   `bgt_budget_lines` 테이블은 더 이상 사용하지 않고 자동으로 삭제됩니다.)
 
 > 보안 방식: 회계관리와 동일합니다. RLS를 켜고 정책은 만들지 않았으므로 SECURITY DEFINER 함수를
 > 통해서만 접근 가능하고, 각 함수 내부에서 `verify_access_key`로 키를 검사합니다.

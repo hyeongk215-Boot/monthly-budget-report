@@ -39,39 +39,45 @@
   </div>
 
   <div class="card">
-    <h2 data-i18n="achievementHeading" style="font-size:18px;"></h2>
-    <p class="desc" data-i18n="achievementDesc"></p>
+    <h2 data-i18n="gaReportHeading" style="font-size:18px;"></h2>
+    <p class="desc" data-i18n="gaReportDesc"></p>
     <div class="form-grid">
       <div>
+        <label data-i18n="corp"></label>
+        <select id="gaReportCorp"></select>
+      </div>
+      <div>
         <label data-i18n="yearLabel"></label>
-        <select id="achievementYear"></select>
+        <select id="gaReportYear"></select>
+      </div>
+      <div>
+        <label data-i18n="periodLabel"></label>
+        <select id="gaReportPeriodType">
+          <option value="month" data-i18n="periodMonth"></option>
+          <option value="quarter" data-i18n="periodQuarter"></option>
+          <option value="half" data-i18n="periodHalf"></option>
+          <option value="annual" data-i18n="periodAnnual"></option>
+        </select>
+      </div>
+      <div id="gaReportPeriodValueWrap">
+        <label data-i18n="periodValueLabel"></label>
+        <select id="gaReportPeriodValue"></select>
       </div>
     </div>
     <div class="btn-row">
-      <button class="btn-primary" id="fetchAchievementBtn" data-i18n="adminFetch"></button>
+      <button class="btn-primary" id="fetchGaReportBtn" data-i18n="adminFetch"></button>
+      <button class="btn-secondary" id="downloadGaReportBtn" data-i18n="adminDownload"></button>
     </div>
-    <div class="table-wrap">
-      <table class="exp-table" id="achievementTable">
-        <thead>
-          <tr>
-            <th data-i18n="colCorp"></th>
-            <th data-i18n="office"></th>
-            <th data-i18n="colTargetProfitCny"></th>
-            <th data-i18n="colOperatingProfit"></th>
-            <th data-i18n="colAchievementRate"></th>
-            <th data-i18n="colBudgetCny"></th>
-            <th data-i18n="colActualCny"></th>
-            <th data-i18n="colAchievementRate"></th>
-            <th data-i18n="adminMonthStatus"></th>
-            <th data-i18n="adminAction"></th>
-          </tr>
-        </thead>
-        <tbody id="achievementBody"></tbody>
-      </table>
-    </div>
-    <div class="btn-row">
-      <button class="btn-primary" id="downloadAchievementBtn" data-i18n="adminDownload"></button>
-    </div>
+    <div id="gaReportMeta" style="font-size:13px; color:var(--muted); margin:10px 0;"></div>
+
+    <h3 style="font-size:14px; margin-top:18px;" data-i18n="gaReportBudgetHeading"></h3>
+    <div class="table-wrap"><table class="exp-table" id="gaReportBudgetTable"><thead></thead><tbody></tbody></table></div>
+
+    <h3 style="font-size:14px; margin-top:18px;" data-i18n="gaReportActualHeading"></h3>
+    <div class="table-wrap"><table class="exp-table" id="gaReportActualTable"><thead></thead><tbody></tbody></table></div>
+
+    <h3 style="font-size:14px; margin-top:18px;" data-i18n="gaReportVarianceHeading"></h3>
+    <div class="table-wrap"><table class="exp-table" id="gaReportVarianceTable"><thead></thead><tbody></tbody></table></div>
   </div>
 
   <div class="card">
@@ -82,6 +88,16 @@
       <span class="badge" id="monthStatusBadge"></span>
       <button class="btn-danger" id="closeMonthBtn"></button>
     </div>
+    <div class="form-grid">
+      <div>
+        <label data-i18n="corp"></label>
+        <select id="gaAggFilterCorp"></select>
+      </div>
+      <div>
+        <label data-i18n="office"></label>
+        <select id="gaAggFilterOffice"></select>
+      </div>
+    </div>
     <div class="table-wrap">
       <table class="exp-table" id="gaAggTable">
         <thead>
@@ -91,6 +107,7 @@
             <th data-i18n="colCategory"></th>
             <th data-i18n="colBudget"></th>
             <th data-i18n="colActual"></th>
+            <th><span data-i18n="colDelete"></span></th>
           </tr>
         </thead>
         <tbody id="gaAggBody"></tbody>
@@ -98,6 +115,7 @@
     </div>
     <div class="btn-row">
       <button class="btn-primary" id="downloadGaBtn" data-i18n="adminDownload"></button>
+      <button class="btn-danger" id="deleteGaSelectedBtn" data-i18n="adminDeleteSelectedBtn"></button>
     </div>
   </div>
 

@@ -9,17 +9,14 @@
   var year = String(ctx.yearmonth).slice(0, 4);
   var client = window.getSupabaseClient();
   var locked = false;
-  var accounts = []; // budget rows: [{accountCode, nameKo, nameZh, months:{...}}]
+  var gaBudget = {}; // { category: { "01": {fixedCny, variableCny}, ... } }
+  var targetCache = {}; // { "01": amt, ... }
 
   function showToast(msg) {
     var el = document.getElementById("toast");
     el.textContent = msg;
     el.classList.add("show");
     setTimeout(function () { el.classList.remove("show"); }, 3000);
-  }
-
-  function accountLabel(row) {
-    return getLang() === "zh" ? row.nameZh : row.nameKo;
   }
 
   function renderContextBar() {
@@ -30,18 +27,18 @@
       "<span><b>" + t("yearLabel") + "</b>: " + year + "</span>";
   }
 
-  function renderHeadRow(elId) {
-    var tr = document.getElementById(elId);
-    tr.innerHTML = "<th>" + t("colAccount") + "</th>";
+  function renderTargetRow(targetMonths) {
+    var headRow = document.getElementById("targetHeadRow");
+    headRow.innerHTML = "<th>" + t("colAccount") + "</th>";
     MONTHS.forEach(function (m) {
       var th = document.createElement("th");
       th.textContent = Number(m) + t("monthSuffix");
-      tr.appendChild(th);
+      headRow.appendChild(th);
     });
-  }
+    var thTotal = document.createElement("th");
+    thTotal.textContent = t("annualTotalLabel");
+    headRow.appendChild(thTotal);
 
-  function renderTargetRow(targetMonths) {
-    renderHeadRow("targetHeadRow");
     var body = document.getElementById("targetBody");
     body.innerHTML = "";
     var tr = document.createElement("tr");
@@ -52,21 +49,82 @@
     });
     tr.innerHTML = cells;
     body.appendChild(tr);
+    var tdTotal = document.createElement("td");
+    tdTotal.id = "targetAnnualTotal";
+    tdTotal.style.fontWeight = "700";
+    tr.appendChild(tdTotal);
+    updateTargetTotal();
   }
 
-  function renderBudgetGrid(rows) {
-    renderHeadRow("budgetHeadRow");
+  function updateTargetTotal() {
+    var sum = 0;
+    document.querySelectorAll(".target-input").forEach(function (input) {
+      sum += Number(input.value) || 0;
+    });
+    var el = document.getElementById("targetAnnualTotal");
+    if (el) el.textContent = sum.toLocaleString();
+  }
+
+  function renderBudgetHead() {
+    var row1 = document.getElementById("budgetHeadRow1");
+    var row2 = document.getElementById("budgetHeadRow2");
+    row1.innerHTML = "<th rowspan='2'>" + t("colCategory") + "</th>";
+    row2.innerHTML = "";
+    MONTHS.forEach(function (m) {
+      var th1 = document.createElement("th");
+      th1.colSpan = 2;
+      th1.textContent = Number(m) + t("monthSuffix");
+      row1.appendChild(th1);
+      var thF = document.createElement("th");
+      thF.textContent = t("colFixed");
+      var thV = document.createElement("th");
+      thV.textContent = t("colVariable");
+      row2.appendChild(thF);
+      row2.appendChild(thV);
+    });
+    var thTotal1 = document.createElement("th");
+    thTotal1.colSpan = 2;
+    thTotal1.textContent = t("annualTotalLabel");
+    row1.appendChild(thTotal1);
+    var thTotalF = document.createElement("th");
+    thTotalF.textContent = t("colFixed");
+    var thTotalV = document.createElement("th");
+    thTotalV.textContent = t("colVariable");
+    row2.appendChild(thTotalF);
+    row2.appendChild(thTotalV);
+  }
+
+  function renderBudgetGrid() {
+    renderBudgetHead();
     var body = document.getElementById("budgetBody");
     body.innerHTML = "";
-    rows.forEach(function (row) {
+    window.GA_CATEGORIES.forEach(function (cat) {
+      var months = gaBudget[cat.code] || {};
       var tr = document.createElement("tr");
-      var cells = "<td style='text-align:left;'>" + accountLabel(row) + "</td>";
+      var cells = "<td style='text-align:left;'>" + window.gaCategoryLabel(cat.code) + "</td>";
       MONTHS.forEach(function (m) {
-        var v = row.months && row.months[m] != null ? row.months[m] : "";
-        cells += "<td><input type='number' step='0.01' data-code='" + row.accountCode + "' data-month='" + m + "' class='budget-input' value='" + v + "' " + (locked ? "disabled" : "") + "></td>";
+        var v = months[m] || {};
+        cells +=
+          "<td><input type='number' step='0.01' data-category='" + cat.code + "' data-month='" + m + "' data-field='fixed' class='ga-budget-input' value='" + (v.fixedCny != null ? v.fixedCny : "") + "' " + (locked ? "disabled" : "") + "></td>" +
+          "<td><input type='number' step='0.01' data-category='" + cat.code + "' data-month='" + m + "' data-field='variable' class='ga-budget-input' value='" + (v.variableCny != null ? v.variableCny : "") + "' " + (locked ? "disabled" : "") + "></td>";
       });
+      cells += "<td class='cat-total-fixed' style='font-weight:700;'>-</td><td class='cat-total-variable' style='font-weight:700;'>-</td>";
       tr.innerHTML = cells;
+      tr.dataset.category = cat.code;
       body.appendChild(tr);
+    });
+    updateBudgetTotals();
+  }
+
+  function updateBudgetTotals() {
+    window.GA_CATEGORIES.forEach(function (cat) {
+      var tr = document.querySelector('#budgetBody tr[data-category="' + cat.code + '"]');
+      if (!tr) return;
+      var fixedSum = 0, variableSum = 0;
+      tr.querySelectorAll('.ga-budget-input[data-field="fixed"]').forEach(function (input) { fixedSum += Number(input.value) || 0; });
+      tr.querySelectorAll('.ga-budget-input[data-field="variable"]').forEach(function (input) { variableSum += Number(input.value) || 0; });
+      tr.querySelector(".cat-total-fixed").textContent = fixedSum.toLocaleString();
+      tr.querySelector(".cat-total-variable").textContent = variableSum.toLocaleString();
     });
   }
 
@@ -78,12 +136,14 @@
   }
 
   function submitAnnual() {
-    var lines = accounts.map(function (row) {
+    var lines = window.GA_CATEGORIES.map(function (cat) {
       var months = {};
-      document.querySelectorAll('.budget-input[data-code="' + row.accountCode + '"]').forEach(function (input) {
-        months[input.dataset.month] = Number(input.value) || 0;
+      document.querySelectorAll('.ga-budget-input[data-category="' + cat.code + '"]').forEach(function (input) {
+        var m = input.dataset.month;
+        if (!months[m]) months[m] = { fixedCny: 0, variableCny: 0 };
+        months[m][input.dataset.field === "fixed" ? "fixedCny" : "variableCny"] = Number(input.value) || 0;
       });
-      return { accountCode: row.accountCode, months: months };
+      return { category: cat.code, months: months };
     });
     var targetMonths = {};
     document.querySelectorAll(".target-input").forEach(function (input) {
@@ -97,7 +157,7 @@
       p_corp: ctx.corp,
       p_office: ctx.office,
       p_year: year,
-      p_budget_lines: lines,
+      p_ga_budget_lines: lines,
       p_target_months: targetMonths,
       p_submitted_by: ctx.submitter
     }).then(function (res) {
@@ -125,10 +185,11 @@
       if (res.error) throw res.error;
       var data = res.data || {};
       locked = !!data.locked;
-      accounts = data.budget || [];
+      gaBudget = data.gaBudget || {};
+      targetCache = data.target || {};
       renderContextBar();
-      renderTargetRow(data.target || {});
-      renderBudgetGrid(accounts);
+      renderTargetRow(targetCache);
+      renderBudgetGrid();
       applyLockedState();
     }).catch(function () {
       showToast(t("fetchFail"));
@@ -138,10 +199,12 @@
   document.addEventListener("DOMContentLoaded", function () {
     loadAll();
     document.getElementById("submitAnnualBtn").addEventListener("click", submitAnnual);
+    document.getElementById("targetBody").addEventListener("input", updateTargetTotal);
+    document.getElementById("budgetBody").addEventListener("input", updateBudgetTotals);
     document.addEventListener("langchange", function () {
       renderContextBar();
-      renderHeadRow("targetHeadRow");
-      renderHeadRow("budgetHeadRow");
+      renderTargetRow(targetCache);
+      renderBudgetGrid();
     });
   });
 })();
