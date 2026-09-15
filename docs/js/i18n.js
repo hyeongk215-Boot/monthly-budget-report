@@ -18,6 +18,10 @@ window.I18N = {
     invalidKey: "접근키가 올바르지 않습니다. 본사 담당자에게 확인해주세요.",
     keyMismatchBranch: "이 접근키는 {branch} 전용입니다. 법인 선택이 자동으로 변경되었습니다.",
 
+    myChecklistHeading: "나의 최근 3개월 제출 현황",
+    checklistAllDone: "제출완료",
+    checklistMissingLabel: "미제출:",
+
     viewHeading: "연간 예산 · 목표영업이익 입력",
     fetchFail: "조회에 실패했습니다. 접근키를 확인해주세요.",
     colAccount: "계정과목",
@@ -108,6 +112,11 @@ window.I18N = {
     adminReopenSuccess: "마감이 해제되었습니다.",
     adminCloseFail: "처리에 실패했습니다.",
 
+    adminChecklistHeading: "지점별 미제출 체크리스트",
+    adminChecklistDesc: "선택한 년월 기준으로 각 법인·지점의 일반관리비 실적 제출 여부입니다 (연간 예산과는 별개로, 매달 제출하는 실적 기준입니다).",
+    adminMissingOnlyLabel: "미제출 지점만 보기",
+    adminNotSubmitted: "미제출",
+
     gaAggHeading: "일반관리비 세부 예산/실적 취합",
     gaAggDesc: "전체 법인·지점이 제출한 일반관리비 항목별 예산/실적(고정비+변동비 합계)입니다. 값 옆의 × 버튼 또는 체크박스+선택 삭제로 오기 입력을 정정할 수 있습니다.",
     colCorp: "법인",
@@ -141,6 +150,10 @@ window.I18N = {
     requiredWarning: "请填写法人、分公司、适用年月、负责人姓名和接入密钥。",
     invalidKey: "接入密钥不正确，请向总部负责人确认。",
     keyMismatchBranch: "该接入密钥仅限{branch}使用，已自动切换法人选择。",
+
+    myChecklistHeading: "我最近3个月的提交情况",
+    checklistAllDone: "已提交",
+    checklistMissingLabel: "未提交:",
 
     viewHeading: "年度预算 · 目标营业利润填报",
     fetchFail: "查询失败，请检查接入密钥。",
@@ -231,6 +244,11 @@ window.I18N = {
     adminCloseSuccess: "已截止。",
     adminReopenSuccess: "已解除截止。",
     adminCloseFail: "操作失败。",
+
+    adminChecklistHeading: "各分公司未提交检查清单",
+    adminChecklistDesc: "按所选年月显示各法人·分公司的一般管理费实际提交情况（与年度预算无关，是按月提交的实际数据）。",
+    adminMissingOnlyLabel: "只看未提交分公司",
+    adminNotSubmitted: "未提交",
 
     gaAggHeading: "一般管理费明细预算/实际汇总",
     gaAggDesc: "全法人·分公司提交的一般管理费各项目预算/实际（固定费+浮动费合计）。可通过数值旁的×按钮或勾选后选择删除来更正误填数据。",

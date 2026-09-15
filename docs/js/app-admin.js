@@ -2,6 +2,18 @@
   var closedMonths = [];
   var gaAggRows = [];
   var gaReportData = null; // { corp, year, periodLabel, offices: [...], budget:{}, actual:{}, variance:{} }
+  var missingOnly = false;
+
+  // 법인×지점 전체 목록 (일반관리비 실적을 한 건도 제출하지 않은 지점도 "미제출"로 표시하기 위해 전수 나열)
+  function allOfficePairs() {
+    var pairs = [];
+    Object.keys(window.APP_CONFIG.CORP_OFFICES || {}).forEach(function (corp) {
+      window.APP_CONFIG.CORP_OFFICES[corp].forEach(function (office) {
+        pairs.push({ corp: corp, office: office });
+      });
+    });
+    return pairs;
+  }
 
   function showToast(msg) {
     var el = document.getElementById("toast");
@@ -312,6 +324,35 @@
   function renderGaAggTable(rows) {
     gaAggRows = rows || [];
     renderGaAggBody();
+    renderChecklist();
+  }
+
+  // 일반관리비 실적(kind='actual') 제출 여부 기준 미제출 체크리스트 - submit_ga_lines가 성공하면
+  // 곧바로 bgt_ga_actual_lock도 함께 걸리므로, actual 행 존재 여부로 제출완료를 판단할 수 있습니다.
+  function renderChecklist() {
+    var grid = document.getElementById("checklistGrid");
+    if (!grid) return;
+    var submittedPairs = {};
+    gaAggRows.filter(function (r) { return r.kind === "actual"; }).forEach(function (r) {
+      submittedPairs[r.corp + "::" + r.office] = true;
+    });
+    var pairs = allOfficePairs().sort(function (a, b) {
+      return (a.corp + a.office).localeCompare(b.corp + b.office);
+    });
+    if (missingOnly) {
+      pairs = pairs.filter(function (pair) { return !submittedPairs[pair.corp + "::" + pair.office]; });
+    }
+    grid.innerHTML = "";
+    pairs.forEach(function (pair) {
+      var done = !!submittedPairs[pair.corp + "::" + pair.office];
+      var div = document.createElement("div");
+      div.className = "status-chip";
+      div.innerHTML = "<b>" + window.corpLabel(pair.corp) + " - " + window.officeLabel(pair.office) + "</b><br>" +
+        "<span style='display:inline-block; margin-top:2px; padding:1px 6px; border-radius:8px; font-size:11px; background:" +
+        (done ? "#f2fbf3;color:var(--ok);" : "#fdf3f2;color:var(--danger);") + "'>" +
+        (done ? t("checklistAllDone") : t("adminNotSubmitted")) + "</span>";
+      grid.appendChild(div);
+    });
   }
 
   function renderGaAggBody() {
@@ -455,7 +496,7 @@
     fillGaAggFilterOffice();
     document.addEventListener("langchange", function () {
       fillYm(); fillGaReportCorp(); fillGaReportYear(); fillGaReportPeriodValue();
-      fillGaAggFilterCorp(); fillGaAggFilterOffice(); renderMonthStatus(); renderGaAggBody();
+      fillGaAggFilterCorp(); fillGaAggFilterOffice(); renderMonthStatus(); renderGaAggBody(); renderChecklist();
     });
     document.getElementById("fetchBtn").addEventListener("click", fetchGaAggregate);
     document.getElementById("gaReportPeriodType").addEventListener("change", fillGaReportPeriodValue);
@@ -472,6 +513,10 @@
     });
     document.getElementById("closeMonthBtn").addEventListener("click", toggleMonthClosed);
     document.getElementById("adminYm").addEventListener("change", renderMonthStatus);
+    document.getElementById("missingOnlyCheckbox").addEventListener("change", function (e) {
+      missingOnly = e.target.checked;
+      renderChecklist();
+    });
     refreshClosedMonths();
   });
 })();

@@ -16,6 +16,28 @@
     setTimeout(function () { el.classList.remove("show"); }, 3000);
   }
 
+  function renderMyChecklist() {
+    var body = document.getElementById("myChecklistBody");
+    if (!body) return;
+    var months = window.recentYearMonths(3);
+    Promise.all(months.map(function (ym) {
+      return client.rpc("get_ga_actual_lock", { p_access_key: ctx.accessKey, p_corp: ctx.corp, p_office: ctx.office, p_yearmonth: ym });
+    })).then(function (results) {
+      var html = "";
+      months.forEach(function (ym, i) {
+        var done = !!(results[i] && results[i].data);
+        html += "<div style='margin:4px 0;'><b>" + ym + "</b>: ";
+        html += done
+          ? "<span style='color:var(--ok);'>" + t("checklistAllDone") + "</span>"
+          : "<span style='color:var(--danger);'>" + t("checklistMissingLabel") + " " + t("gaSubmitHeading") + "</span>";
+        html += "</div>";
+      });
+      body.innerHTML = html;
+    }).catch(function () {
+      body.innerHTML = "";
+    });
+  }
+
   function renderContextBar() {
     var el = document.getElementById("contextBar");
     el.innerHTML =
@@ -226,11 +248,13 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     loadAll();
+    renderMyChecklist();
     document.getElementById("submitGaBtn").addEventListener("click", submitGa);
     document.getElementById("gaBody").addEventListener("input", renderTotals);
     document.addEventListener("langchange", function () {
       renderContextBar();
       loadAll();
+      renderMyChecklist();
     });
   });
 })();
