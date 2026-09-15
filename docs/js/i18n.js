@@ -136,7 +136,7 @@ window.I18N = {
     appTitle: "预算管理 - 中国法人预算实际对比系统",
     langName: "中文",
     navAdmin: "总部用：管理员页面",
-    navDashboard: "← 综合仪表盘",
+    navDashboard: "← 开始页面",
     backBtn: "← 返回",
 
     indexHeading: "预算管理填报·查询",
