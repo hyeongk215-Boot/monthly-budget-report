@@ -1,5 +1,12 @@
 window.I18N = {
   ko: {
+    moduleName: "예산관리",
+    navSecMain: "조회",
+    navSecAdmin: "관리",
+    navQuery: "예산 조회",
+    navBudgetView: "예산 대비 실적",
+    navGaSubmit: "일반관리비 입력",
+    navAdminShort: "관리자 화면",
     appTitle: "예산관리 - 중국법인 예산 대비 실적 시스템",
     langName: "한국어",
     navAdmin: "본사용: 관리자 화면",
@@ -133,6 +140,13 @@ window.I18N = {
     fileNamePrefix: "예산대비실적"
   },
   zh: {
+    moduleName: "预算管理",
+    navSecMain: "查询",
+    navSecAdmin: "管理",
+    navQuery: "预算查询",
+    navBudgetView: "预算与实际",
+    navGaSubmit: "一般管理费录入",
+    navAdminShort: "管理员页面",
     appTitle: "预算管理 - 中国法人预算实际对比系统",
     langName: "中文",
     navAdmin: "总部用：管理员页面",

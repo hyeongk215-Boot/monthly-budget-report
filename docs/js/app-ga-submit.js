@@ -136,8 +136,8 @@
     PERIODS.forEach(function (p) {
       var tSum = sumOver(target, p.months);
       var aSum = sumOver(targetActual, p.months);
-      targetRow += "<td style='background:#f3f6fb; font-weight:700;'>" + (tSum != null ? tSum.toLocaleString() : "-") + "</td>";
-      actualRow += "<td style='background:#f3f6fb; font-weight:700;'>" + (aSum != null ? aSum.toLocaleString() : "-") + "</td>";
+      targetRow += "<td style='background:var(--surface-2); font-weight:700;'>" + (tSum != null ? tSum.toLocaleString() : "-") + "</td>";
+      actualRow += "<td style='background:var(--surface-2); font-weight:700;'>" + (aSum != null ? aSum.toLocaleString() : "-") + "</td>";
     });
     var tr1 = document.createElement("tr");
     tr1.innerHTML = targetRow;
