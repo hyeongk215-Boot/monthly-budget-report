@@ -64,6 +64,11 @@ window.I18N = {
     monthClosedBanner: "⚠ {yearmonth} 은(는) 예산이 마감되어 더 이상 입력/제출할 수 없습니다. 본사 담당자에게 문의해주세요.",
     submitTabBtn: "제출",
 
+    draftSaveBtn: "임시저장",
+    draftSaved: "임시저장했습니다. (제출은 아직 되지 않았습니다)",
+    draftSavedAt: "마지막 임시저장",
+    draftLocalNote: "입력 중인 내용을 이 브라우저에 저장해 둡니다. 제출이 아니므로 본사에는 전달되지 않고, 다른 PC·다른 브라우저에서는 보이지 않습니다.",
+
     gaSubmitNavLink: "실적 입력",
     gaSubmitHeading: "일반관리비 실적 입력",
     gaSubmitDesc: "이번 달 우리 지점의 일반관리비 실적을 항목별로 고정비/변동비로 나누어 입력하고 제출합니다. 예산 칸은 연간 예산 입력 화면에서 제출한 값을 참고용으로 불러온 것으로 이 화면에서는 수정할 수 없습니다. 제출 후에는 자동으로 잠기며, 본사(관리자)만 잠금을 해제하고 수정할 수 있습니다.",
@@ -203,6 +208,11 @@ window.I18N = {
     office: "分公司",
     monthClosedBanner: "⚠ {yearmonth} 预算已截止，无法再填报/提交。请联系总部负责人。",
     submitTabBtn: "提交",
+
+    draftSaveBtn: "暂存草稿",
+    draftSaved: "已暂存。(尚未提交)",
+    draftSavedAt: "上次暂存时间",
+    draftLocalNote: "将正在填写的内容保存在本浏览器中。这不是提交，不会发送给总部，其他电脑或浏览器上也看不到。",
 
     gaSubmitNavLink: "实际填报",
     gaSubmitHeading: "一般管理费实际填报",

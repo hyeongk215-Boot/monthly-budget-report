@@ -68,7 +68,62 @@
         "<td><input type='number' step='0.01' data-category='" + cat.code + "' data-field='variable' class='ga-input' value='" + (a.variableCny != null ? a.variableCny : "") + "' " + (gaLocked ? "disabled" : "") + "></td>";
       body.appendChild(tr);
     });
+    applyDraft();   // 합계 계산 전에 초안을 채워 넣어야 소계가 초안 기준으로 맞습니다.
     renderTotals();
+  }
+
+  // ===== 임시저장 =====
+  // 제출 전까지 입력하던 내용을 이 브라우저에만 보관합니다. 서버에는 아무것도 보내지 않으므로
+  // 이미 제출·잠긴 달의 실적을 건드릴 위험이 없습니다.
+  function gaDraftKey() {
+    return window.draftKey(ctx.corp, ctx.office, ctx.yearmonth, ctx.submitter, "ga");
+  }
+
+  // 한 칸을 가리키는 키. 항목코드와 고정/변동이 합쳐져야 유일해집니다.
+  function cellKey(input) {
+    return input.dataset.category + "::" + input.dataset.field;
+  }
+
+  function updateDraftInfo(draft) {
+    var el = document.getElementById("draftInfo");
+    if (!el) return;
+    el.textContent = draft && draft._savedAt
+      ? "💾 " + t("draftSavedAt") + ": " + window.formatSavedAt(draft._savedAt)
+      : "";   // 비어 있으면 CSS의 .draft-info:empty 가 칩을 통째로 숨깁니다.
+  }
+
+  // 잠긴 달은 이미 제출이 끝나 서버 값이 정답이므로 초안을 덮어쓰지 않습니다.
+  function applyDraft() {
+    var draft = gaLocked ? null : window.loadDraft(gaDraftKey());
+    if (draft && draft.values) {
+      document.querySelectorAll(".ga-input").forEach(function (input) {
+        var v = draft.values[cellKey(input)];
+        if (v != null && v !== "") input.value = v;
+      });
+    }
+    updateDraftInfo(draft);
+  }
+
+  function saveDraftNow() {
+    var values = {};
+    document.querySelectorAll(".ga-input").forEach(function (input) {
+      values[cellKey(input)] = input.value;
+    });
+    var saved = window.saveDraft(gaDraftKey(), { values: values });
+    updateDraftInfo({ _savedAt: saved });
+  }
+
+  var saveTimer = null;
+  function scheduleAutosave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveDraftNow, 600);
+  }
+
+  // 「임시저장」 버튼: 자동저장을 기다리지 않고 즉시 저장하고, 저장됐다는 걸 눈으로 확인시켜 줍니다.
+  function saveDraftManual() {
+    clearTimeout(saveTimer);
+    saveDraftNow();
+    showToast(t("draftSaved"));
   }
 
   function renderTotals() {
@@ -175,6 +230,8 @@
     banner.style.display = gaLocked ? "block" : "none";
     banner.textContent = gaLocked ? t("gaActualLockedNote") : "";
     document.getElementById("submitGaBtn").style.display = gaLocked ? "none" : "inline-block";
+    // 잠기면 입력칸이 전부 비활성화되므로 임시저장할 내용도 없습니다.
+    document.getElementById("draftGaBtn").style.display = gaLocked ? "none" : "inline-block";
     document.querySelectorAll(".ga-input").forEach(function (input) { input.disabled = gaLocked; });
   }
 
@@ -219,6 +276,10 @@
         return;
       }
       gaLocked = true;
+      // 제출이 끝났으니 초안은 역할을 다했습니다. 남겨두면 나중에 서버 값을 가릴 수 있습니다.
+      clearTimeout(saveTimer);
+      window.clearDraft(gaDraftKey());
+      updateDraftInfo(null);
       applyLockedState();
       showToast(t("saveTargetProfitSuccess"));
     }).catch(function () {
@@ -250,9 +311,16 @@
     loadAll();
     renderMyChecklist();
     document.getElementById("submitGaBtn").addEventListener("click", submitGa);
-    document.getElementById("gaBody").addEventListener("input", renderTotals);
+    var draftBtn = document.getElementById("draftGaBtn");
+    draftBtn.title = t("draftLocalNote");
+    draftBtn.addEventListener("click", saveDraftManual);
+    document.getElementById("gaBody").addEventListener("input", function () {
+      renderTotals();
+      scheduleAutosave();
+    });
     document.addEventListener("langchange", function () {
       renderContextBar();
+      draftBtn.title = t("draftLocalNote");   // data-i18n은 본문만 바꿔주므로 툴팁은 직접 갱신
       loadAll();
       renderMyChecklist();
     });

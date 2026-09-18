@@ -87,6 +87,34 @@ window.clearContext = function () {
   sessionStorage.removeItem("bgtContext");
 };
 
+// ===== localStorage 임시저장 =====
+// ⚠ 임시저장은 이 브라우저(localStorage)에만 남습니다. 다른 PC/브라우저나 시크릿 창에서는
+//   보이지 않고, 브라우저 데이터를 지우면 함께 사라집니다. 서버에 남는 건 "제출"뿐입니다.
+// ⚠ 키 앞에 "bgtDraft"를 붙이는 이유: GitHub Pages는 회계관리/예산관리가 같은 도메인이라
+//   localStorage를 공유합니다. 회계관리는 "draft::"를 쓰므로 겹치지 않게 분리합니다.
+window.formatSavedAt = function (iso) {
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  function p(n) { return String(n).padStart(2, "0"); }
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
+    " " + p(d.getHours()) + ":" + p(d.getMinutes());
+};
+window.draftKey = function (corp, office, yearmonth, submitter, kind) {
+  return "bgtDraft::" + corp + "::" + office + "::" + yearmonth + "::" + (submitter || "") + "::" + kind;
+};
+window.saveDraft = function (key, data) {
+  data._savedAt = new Date().toISOString();
+  localStorage.setItem(key, JSON.stringify(data));
+  return data._savedAt;
+};
+window.loadDraft = function (key) {
+  var raw = localStorage.getItem(key);
+  try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+};
+window.clearDraft = function (key) {
+  localStorage.removeItem(key);
+};
+
 window.downloadWorkbook = function (wb, filename) {
   XLSX.writeFile(wb, filename);
 };
