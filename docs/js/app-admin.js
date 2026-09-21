@@ -355,6 +355,138 @@
     });
   }
 
+  // ===== 제출 잠금 해제 =====
+  // 잠금 현황만 모아서 주는 RPC는 없습니다. 연간은 get_annual_budget이 함께 돌려주는 locked
+  // 플래그를, 월별은 get_ga_actual_lock을 지점마다 한 번씩 호출해서 모읍니다(법인당 최대 12곳).
+  // 둘 다 system_admin/finance 키로는 p_corp/p_office가 그대로 쓰이므로 본사에서 전 지점 조회됩니다.
+  var lockRows = [];
+
+  function fillUnlockCorp() {
+    var sel = document.getElementById("unlockCorp");
+    var prev = sel.value;
+    var lang = getLang();
+    sel.innerHTML = "";
+    window.APP_CONFIG.CORPORATIONS.forEach(function (item) {
+      var o = document.createElement("option");
+      o.value = item.ko; o.textContent = item[lang] || item.ko;
+      sel.appendChild(o);
+    });
+    if (prev) sel.value = prev;
+  }
+
+  function fillUnlockYear() {
+    var sel = document.getElementById("unlockYear");
+    var prev = sel.value;
+    sel.innerHTML = "";
+    var thisYear = new Date().getFullYear();
+    for (var y = thisYear + 1; y >= thisYear - 3; y--) {
+      var o = document.createElement("option");
+      o.value = String(y); o.textContent = String(y);
+      sel.appendChild(o);
+    }
+    sel.value = prev || String(thisYear);
+  }
+
+  function fillUnlockYm() {
+    var sel = document.getElementById("unlockYm");
+    var prev = sel.value;
+    sel.innerHTML = "";
+    window.generateYearMonths().forEach(function (ym) {
+      var o = document.createElement("option");
+      o.value = ym; o.textContent = ym;
+      sel.appendChild(o);
+    });
+    sel.value = prev || window.defaultYearMonth();
+  }
+
+  function fetchLockStatus() {
+    var client = window.getSupabaseClient();
+    var key = getKey();
+    if (!client) { showToast(t("adminFetchFail")); return; }
+    if (!key) { showToast(t("adminKeyRequired")); return; }
+    var corp = document.getElementById("unlockCorp").value;
+    var year = document.getElementById("unlockYear").value;
+    var ym = document.getElementById("unlockYm").value;
+    var offices = officesForCorp(corp);
+    var calls = [];
+    offices.forEach(function (o) {
+      calls.push(client.rpc("get_annual_budget", { p_access_key: key, p_corp: corp, p_office: o.ko, p_year: year }));
+      calls.push(client.rpc("get_ga_actual_lock", { p_access_key: key, p_corp: corp, p_office: o.ko, p_yearmonth: ym }));
+    });
+    Promise.all(calls).then(function (results) {
+      if (results.some(function (r) { return r.error; })) throw new Error("fetch_failed");
+      lockRows = offices.map(function (o, i) {
+        var annual = results[i * 2].data;
+        return {
+          corp: corp, office: o.ko, year: year, yearmonth: ym,
+          annualLocked: !!(annual && annual.locked),
+          monthlyLocked: !!results[i * 2 + 1].data
+        };
+      });
+      renderLockTable();
+    }).catch(function () {
+      showToast(t("adminFetchFail"));
+    });
+  }
+
+  function lockCell(locked, action, row) {
+    var badge = "<span class='badge " + (locked ? "badge-special" : "badge-general") + "'>" +
+      t(locked ? "unlockLockedBadge" : "unlockOpenBadge") + "</span>";
+    if (!locked) return "<td>" + badge + "</td>";
+    return "<td>" + badge +
+      " <button type='button' class='btn-secondary unlock-btn' data-action='" + action +
+      "' data-office='" + row.office + "' style='font-size:11px; padding:2px 8px;'>" + t("unlockBtn") + "</button></td>";
+  }
+
+  function renderLockTable() {
+    var body = document.getElementById("lockBody");
+    body.innerHTML = "";
+    if (!lockRows.length) {
+      document.getElementById("unlockClosedWarn").style.display = "none";
+      return;
+    }
+    document.getElementById("lockAnnualTh").textContent = t("unlockColAnnual", { year: lockRows[0].year });
+    document.getElementById("lockMonthlyTh").textContent = t("unlockColMonthly", { yearmonth: lockRows[0].yearmonth });
+
+    // 월 자체가 마감되어 있으면 지점 잠금을 풀어도 submit_ga_lines가 budget_closed로 막습니다.
+    var warn = document.getElementById("unlockClosedWarn");
+    var monthClosed = closedMonths.indexOf(lockRows[0].yearmonth) !== -1;
+    warn.style.display = monthClosed ? "block" : "none";
+    warn.textContent = monthClosed ? t("unlockMonthClosedWarn", { yearmonth: lockRows[0].yearmonth }) : "";
+
+    lockRows.forEach(function (row) {
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td style='text-align:left;'>" + window.officeLabel(row.office) + "</td>" +
+        lockCell(row.annualLocked, "annual", row) +
+        lockCell(row.monthlyLocked, "monthly", row);
+      body.appendChild(tr);
+    });
+  }
+
+  function unlockOne(action, office) {
+    var client = window.getSupabaseClient();
+    var key = getKey();
+    if (!client) { showToast(t("unlockFail")); return; }
+    if (!key) { showToast(t("adminKeyRequired")); return; }
+    var row = lockRows.filter(function (r) { return r.office === office; })[0];
+    if (!row) return;
+    var isAnnual = action === "annual";
+    var msg = isAnnual
+      ? t("unlockAnnualConfirm", { office: window.officeLabel(office), year: row.year })
+      : t("unlockMonthlyConfirm", { office: window.officeLabel(office), yearmonth: row.yearmonth });
+    if (!confirm(msg)) return;
+    var params = isAnnual
+      ? { p_access_key: key, p_corp: row.corp, p_office: office, p_year: row.year }
+      : { p_access_key: key, p_corp: row.corp, p_office: office, p_yearmonth: row.yearmonth };
+    client.rpc(isAnnual ? "unlock_annual_budget" : "unlock_ga_actual", params).then(function (res) {
+      if (res.error) throw res.error;
+      showToast(t("unlockSuccess"));
+      fetchLockStatus();
+    }).catch(function () {
+      showToast(t("unlockFail"));
+    });
+  }
+
   function renderGaAggBody() {
     var rows = filteredGaAggRows();
     var body = document.getElementById("gaAggBody");
@@ -453,6 +585,7 @@
     return window.fetchClosedMonths().then(function (list) {
       closedMonths = list;
       renderMonthStatus();
+      renderLockTable();   // 마감 해제 직후 잠금 표의 "마감된 달" 경고도 같이 사라지게
     });
   }
 
@@ -494,9 +627,13 @@
     fillGaReportPeriodValue();
     fillGaAggFilterCorp();
     fillGaAggFilterOffice();
+    fillUnlockCorp();
+    fillUnlockYear();
+    fillUnlockYm();
     document.addEventListener("langchange", function () {
       fillYm(); fillGaReportCorp(); fillGaReportYear(); fillGaReportPeriodValue();
       fillGaAggFilterCorp(); fillGaAggFilterOffice(); renderMonthStatus(); renderGaAggBody(); renderChecklist();
+      fillUnlockCorp(); fillUnlockYear(); fillUnlockYm(); renderLockTable();
     });
     document.getElementById("fetchBtn").addEventListener("click", fetchGaAggregate);
     document.getElementById("gaReportPeriodType").addEventListener("change", fillGaReportPeriodValue);
@@ -510,6 +647,12 @@
       var btn = e.target.closest(".ga-del-btn");
       if (!btn) return;
       deleteGaLine(btn.dataset.corp, btn.dataset.office, btn.dataset.category, btn.dataset.kind);
+    });
+    document.getElementById("fetchLockBtn").addEventListener("click", fetchLockStatus);
+    document.getElementById("lockBody").addEventListener("click", function (e) {
+      var btn = e.target.closest(".unlock-btn");
+      if (!btn) return;
+      unlockOne(btn.dataset.action, btn.dataset.office);
     });
     document.getElementById("closeMonthBtn").addEventListener("click", toggleMonthClosed);
     document.getElementById("adminYm").addEventListener("change", renderMonthStatus);
