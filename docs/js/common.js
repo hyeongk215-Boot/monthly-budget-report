@@ -64,15 +64,22 @@ function findByKo(list, koValue) {
   }
   return null;
 }
+// ko값은 DB에 그대로 저장되는 키라서 바꿀 수 없습니다. 화면 표기만 다르게 하고 싶으면
+// config.js 항목에 koLabel을 넣습니다 (예: DB는 "충칭", 본사 양식 표기는 "중경").
+function pickLabel(item, lang) {
+  lang = lang || getLang();
+  if (lang === "ko" && item.koLabel) return item.koLabel;
+  return item[lang] || item.koLabel || item.ko;
+}
 window.corpLabel = function (koValue, lang) {
   var item = findByKo(window.APP_CONFIG.CORPORATIONS, koValue);
   if (!item) return koValue;
-  return item[lang || getLang()] || item.ko;
+  return pickLabel(item, lang);
 };
 window.officeLabel = function (koValue, lang) {
   var item = findByKo(window.APP_CONFIG.OFFICES, koValue);
   if (!item) return koValue;
-  return item[lang || getLang()] || item.ko;
+  return pickLabel(item, lang);
 };
 
 // ===== 세션 컨텍스트 (법인/년월/접근키/역할) =====
