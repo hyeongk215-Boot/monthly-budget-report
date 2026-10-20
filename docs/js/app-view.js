@@ -126,6 +126,33 @@
       tr.querySelector(".cat-total-fixed").textContent = fixedSum.toLocaleString();
       tr.querySelector(".cat-total-variable").textContent = variableSum.toLocaleString();
     });
+    renderBudgetFoot();
+  }
+
+  // 하단 소계(월별·연간 고정비/변동비 열 합)와 합계(고정비+변동비)를 입력값 기준으로 다시 계산합니다.
+  function renderBudgetFoot() {
+    var fixedByMonth = {}, variableByMonth = {};
+    MONTHS.forEach(function (m) { fixedByMonth[m] = 0; variableByMonth[m] = 0; });
+    document.querySelectorAll("#budgetBody .ga-budget-input").forEach(function (input) {
+      var target = input.dataset.field === "fixed" ? fixedByMonth : variableByMonth;
+      target[input.dataset.month] += Number(input.value) || 0;
+    });
+
+    var fmt = function (n) { return n.toLocaleString(); };
+    var fixedAnnual = 0, variableAnnual = 0;
+    var subCells = "", totalCells = "";
+    MONTHS.forEach(function (m) {
+      fixedAnnual += fixedByMonth[m];
+      variableAnnual += variableByMonth[m];
+      subCells += "<td>" + fmt(fixedByMonth[m]) + "</td><td>" + fmt(variableByMonth[m]) + "</td>";
+      totalCells += "<td colspan='2'>" + fmt(fixedByMonth[m] + variableByMonth[m]) + "</td>";
+    });
+    subCells += "<td>" + fmt(fixedAnnual) + "</td><td>" + fmt(variableAnnual) + "</td>";
+    totalCells += "<td colspan='2'>" + fmt(fixedAnnual + variableAnnual) + "</td>";
+
+    document.getElementById("budgetFoot").innerHTML =
+      "<tr class='subtotal-row'><td style='text-align:left;'>" + t("gaSubtotalRowLabel") + "</td>" + subCells + "</tr>" +
+      "<tr class='subtotal-row'><td style='text-align:left;'>" + t("gaTotalRowLabel") + "</td>" + totalCells + "</tr>";
   }
 
   function applyLockedState() {
